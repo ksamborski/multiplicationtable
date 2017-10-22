@@ -12645,6 +12645,446 @@ var _rluiten$elm_date_extra$Date_Extra_Period$Hour = {ctor: 'Hour'};
 var _rluiten$elm_date_extra$Date_Extra_Period$Minute = {ctor: 'Minute'};
 var _rluiten$elm_date_extra$Date_Extra_Period$Second = {ctor: 'Second'};
 var _rluiten$elm_date_extra$Date_Extra_Period$Millisecond = {ctor: 'Millisecond'};
+var _rluiten$elm_date_extra$Date_Extra_Internal$daysFromCivil = F3(
+	function (year, month, day) {
+		var doy = (((((153 * (month + ((_elm_lang$core$Native_Utils.cmp(month, 2) > 0) ? -3 : 9))) + 2) / 5) | 0) + day) - 1;
+		var y = year - ((_elm_lang$core$Native_Utils.cmp(month, 2) < 1) ? 1 : 0);
+		var era = (((_elm_lang$core$Native_Utils.cmp(y, 0) > -1) ? y : (y - 399)) / 400) | 0;
+		var yoe = y - (era * 400);
+		var doe = (((yoe * 365) + ((yoe / 4) | 0)) - ((yoe / 100) | 0)) + doy;
+		return ((era * 146097) + doe) - 719468;
+	});
+var _rluiten$elm_date_extra$Date_Extra_Internal$ticksFromFields = F7(
+	function (year, month, day, hour, minute, second, millisecond) {
+		var monthInt = _rluiten$elm_date_extra$Date_Extra_Internal2$monthToInt(month);
+		var clampYear = (_elm_lang$core$Native_Utils.cmp(year, 0) < 0) ? 0 : year;
+		var clampDay = A3(
+			_elm_lang$core$Basics$clamp,
+			1,
+			A2(_rluiten$elm_date_extra$Date_Extra_Internal2$daysInMonth, clampYear, month),
+			day);
+		var dayCount = A3(_rluiten$elm_date_extra$Date_Extra_Internal$daysFromCivil, clampYear, monthInt, clampDay);
+		return _rluiten$elm_date_extra$Date_Extra_Period$toTicks(
+			_rluiten$elm_date_extra$Date_Extra_Period$Delta(
+				{
+					millisecond: A3(_elm_lang$core$Basics$clamp, 0, 999, millisecond),
+					second: A3(_elm_lang$core$Basics$clamp, 0, 59, second),
+					minute: A3(_elm_lang$core$Basics$clamp, 0, 59, minute),
+					hour: A3(_elm_lang$core$Basics$clamp, 0, 23, hour),
+					day: dayCount,
+					week: 0
+				}));
+	});
+var _rluiten$elm_date_extra$Date_Extra_Internal$ticksFromDateFields = function (date) {
+	return A7(
+		_rluiten$elm_date_extra$Date_Extra_Internal$ticksFromFields,
+		_elm_lang$core$Date$year(date),
+		_elm_lang$core$Date$month(date),
+		_elm_lang$core$Date$day(date),
+		_elm_lang$core$Date$hour(date),
+		_elm_lang$core$Date$minute(date),
+		_elm_lang$core$Date$second(date),
+		_elm_lang$core$Date$millisecond(date));
+};
+var _rluiten$elm_date_extra$Date_Extra_Internal$getTimezoneOffset = function (date) {
+	var v1Ticks = _rluiten$elm_date_extra$Date_Extra_Internal$ticksFromDateFields(date);
+	var dateTicks = _elm_lang$core$Basics$floor(
+		_elm_lang$core$Date$toTime(date));
+	return ((dateTicks - v1Ticks) / _rluiten$elm_date_extra$Date_Extra_Internal2$ticksAMinute) | 0;
+};
+var _rluiten$elm_date_extra$Date_Extra_Internal$hackDateAsOffset = F2(
+	function (offsetMinutes, date) {
+		return _rluiten$elm_date_extra$Date_Extra_Internal2$fromTime(
+			A2(
+				F2(
+					function (x, y) {
+						return x + y;
+					}),
+				offsetMinutes * _rluiten$elm_date_extra$Date_Extra_Internal2$ticksAMinute,
+				_rluiten$elm_date_extra$Date_Extra_Internal2$toTime(date)));
+	});
+var _rluiten$elm_date_extra$Date_Extra_Internal$hackDateAsUtc = function (date) {
+	var offset = _rluiten$elm_date_extra$Date_Extra_Internal$getTimezoneOffset(date);
+	var oHours = (offset / _rluiten$elm_date_extra$Date_Extra_Internal2$ticksAnHour) | 0;
+	var oMinutes = ((offset - (oHours * _rluiten$elm_date_extra$Date_Extra_Internal2$ticksAnHour)) / _rluiten$elm_date_extra$Date_Extra_Internal2$ticksAMinute) | 0;
+	return A2(_rluiten$elm_date_extra$Date_Extra_Internal$hackDateAsOffset, offset, date);
+};
+var _rluiten$elm_date_extra$Date_Extra_Core$compensateZoneOffset = F2(
+	function (date1, date2) {
+		return A3(
+			_rluiten$elm_date_extra$Date_Extra_Period$add,
+			_rluiten$elm_date_extra$Date_Extra_Period$Minute,
+			_rluiten$elm_date_extra$Date_Extra_Internal$getTimezoneOffset(date2) - _rluiten$elm_date_extra$Date_Extra_Internal$getTimezoneOffset(date1),
+			date2);
+	});
+var _rluiten$elm_date_extra$Date_Extra_Core$lastOfMonthDate = function (date) {
+	return A2(
+		_rluiten$elm_date_extra$Date_Extra_Core$compensateZoneOffset,
+		date,
+		_rluiten$elm_date_extra$Date_Extra_Internal2$fromTime(
+			_rluiten$elm_date_extra$Date_Extra_Internal2$lastOfMonthTicks(date)));
+};
+var _rluiten$elm_date_extra$Date_Extra_Core$toFirstOfMonth = function (date) {
+	return A2(
+		_rluiten$elm_date_extra$Date_Extra_Core$compensateZoneOffset,
+		date,
+		_rluiten$elm_date_extra$Date_Extra_Internal2$fromTime(
+			_rluiten$elm_date_extra$Date_Extra_Internal2$firstOfMonthTicks(date)));
+};
+var _rluiten$elm_date_extra$Date_Extra_Core$lastOfPrevMonthDate = function (date) {
+	return A2(
+		_rluiten$elm_date_extra$Date_Extra_Core$compensateZoneOffset,
+		date,
+		_rluiten$elm_date_extra$Date_Extra_Internal2$lastOfPrevMonthDate(date));
+};
+var _rluiten$elm_date_extra$Date_Extra_Core$firstOfNextMonthDate = function (date) {
+	return A2(
+		_rluiten$elm_date_extra$Date_Extra_Core$compensateZoneOffset,
+		date,
+		_rluiten$elm_date_extra$Date_Extra_Internal2$firstOfNextMonthDate(date));
+};
+var _rluiten$elm_date_extra$Date_Extra_Core$yearToDayLength = _rluiten$elm_date_extra$Date_Extra_Internal2$yearToDayLength;
+var _rluiten$elm_date_extra$Date_Extra_Core$toTime = _rluiten$elm_date_extra$Date_Extra_Internal2$toTime;
+var _rluiten$elm_date_extra$Date_Extra_Core$ticksAWeek = _rluiten$elm_date_extra$Date_Extra_Internal2$ticksAWeek;
+var _rluiten$elm_date_extra$Date_Extra_Core$ticksASecond = _rluiten$elm_date_extra$Date_Extra_Internal2$ticksASecond;
+var _rluiten$elm_date_extra$Date_Extra_Core$ticksAMinute = _rluiten$elm_date_extra$Date_Extra_Internal2$ticksAMinute;
+var _rluiten$elm_date_extra$Date_Extra_Core$ticksAMillisecond = _rluiten$elm_date_extra$Date_Extra_Internal2$ticksAMillisecond;
+var _rluiten$elm_date_extra$Date_Extra_Core$ticksADay = _rluiten$elm_date_extra$Date_Extra_Internal2$ticksADay;
+var _rluiten$elm_date_extra$Date_Extra_Core$ticksAnHour = _rluiten$elm_date_extra$Date_Extra_Internal2$ticksAnHour;
+var _rluiten$elm_date_extra$Date_Extra_Core$prevMonth = _rluiten$elm_date_extra$Date_Extra_Internal2$prevMonth;
+var _rluiten$elm_date_extra$Date_Extra_Core$prevDay = _rluiten$elm_date_extra$Date_Extra_Internal2$prevDay;
+var _rluiten$elm_date_extra$Date_Extra_Core$nextMonth = _rluiten$elm_date_extra$Date_Extra_Internal2$nextMonth;
+var _rluiten$elm_date_extra$Date_Extra_Core$nextDay = _rluiten$elm_date_extra$Date_Extra_Internal2$nextDay;
+var _rluiten$elm_date_extra$Date_Extra_Core$monthToInt = _rluiten$elm_date_extra$Date_Extra_Internal2$monthToInt;
+var _rluiten$elm_date_extra$Date_Extra_Core$monthList = _rluiten$elm_date_extra$Date_Extra_Internal2$monthList;
+var _rluiten$elm_date_extra$Date_Extra_Core$isoDayOfWeek = _rluiten$elm_date_extra$Date_Extra_Internal2$isoDayOfWeek;
+var _rluiten$elm_date_extra$Date_Extra_Core$daysBackToStartOfWeek = F2(
+	function (dateDay, startOfWeekDay) {
+		var startOfWeekDayIndex = _rluiten$elm_date_extra$Date_Extra_Core$isoDayOfWeek(startOfWeekDay);
+		var dateDayIndex = _rluiten$elm_date_extra$Date_Extra_Core$isoDayOfWeek(dateDay);
+		return (_elm_lang$core$Native_Utils.cmp(dateDayIndex, startOfWeekDayIndex) < 0) ? ((7 + dateDayIndex) - startOfWeekDayIndex) : (dateDayIndex - startOfWeekDayIndex);
+	});
+var _rluiten$elm_date_extra$Date_Extra_Core$isLeapYearDate = _rluiten$elm_date_extra$Date_Extra_Internal2$isLeapYearDate;
+var _rluiten$elm_date_extra$Date_Extra_Core$isLeapYear = _rluiten$elm_date_extra$Date_Extra_Internal2$isLeapYear;
+var _rluiten$elm_date_extra$Date_Extra_Core$intToMonth = _rluiten$elm_date_extra$Date_Extra_Internal2$intToMonth;
+var _rluiten$elm_date_extra$Date_Extra_Core$fromTime = _rluiten$elm_date_extra$Date_Extra_Internal2$fromTime;
+var _rluiten$elm_date_extra$Date_Extra_Core$epochDateStr = _rluiten$elm_date_extra$Date_Extra_Internal2$epochDateStr;
+var _rluiten$elm_date_extra$Date_Extra_Core$daysInMonthDate = _rluiten$elm_date_extra$Date_Extra_Internal2$daysInMonthDate;
+var _rluiten$elm_date_extra$Date_Extra_Core$daysInPrevMonth = _rluiten$elm_date_extra$Date_Extra_Internal2$daysInPrevMonth;
+var _rluiten$elm_date_extra$Date_Extra_Core$daysInNextMonth = _rluiten$elm_date_extra$Date_Extra_Internal2$daysInNextMonth;
+var _rluiten$elm_date_extra$Date_Extra_Core$daysInMonth = _rluiten$elm_date_extra$Date_Extra_Internal2$daysInMonth;
+var _rluiten$elm_date_extra$Date_Extra_Compare$is3 = F4(
+	function (comp, date1, date2, date3) {
+		var time3 = _rluiten$elm_date_extra$Date_Extra_Core$toTime(date3);
+		var time2 = _rluiten$elm_date_extra$Date_Extra_Core$toTime(date2);
+		var highBound = A2(_elm_lang$core$Basics$max, time2, time3);
+		var lowBound = A2(_elm_lang$core$Basics$min, time2, time3);
+		var time1 = _rluiten$elm_date_extra$Date_Extra_Core$toTime(date1);
+		var _p0 = comp;
+		switch (_p0.ctor) {
+			case 'Between':
+				return (_elm_lang$core$Native_Utils.cmp(time1, lowBound) > 0) && (_elm_lang$core$Native_Utils.cmp(time1, highBound) < 0);
+			case 'BetweenOpenStart':
+				return (_elm_lang$core$Native_Utils.cmp(time1, lowBound) > -1) && (_elm_lang$core$Native_Utils.cmp(time1, highBound) < 0);
+			case 'BetweenOpenEnd':
+				return (_elm_lang$core$Native_Utils.cmp(time1, lowBound) > 0) && (_elm_lang$core$Native_Utils.cmp(time1, highBound) < 1);
+			default:
+				return (_elm_lang$core$Native_Utils.cmp(time1, lowBound) > -1) && (_elm_lang$core$Native_Utils.cmp(time1, highBound) < 1);
+		}
+	});
+var _rluiten$elm_date_extra$Date_Extra_Compare$is = F3(
+	function (comp, date1, date2) {
+		var time2 = _rluiten$elm_date_extra$Date_Extra_Core$toTime(date2);
+		var time1 = _rluiten$elm_date_extra$Date_Extra_Core$toTime(date1);
+		var _p1 = comp;
+		switch (_p1.ctor) {
+			case 'Before':
+				return _elm_lang$core$Native_Utils.cmp(time1, time2) < 0;
+			case 'After':
+				return _elm_lang$core$Native_Utils.cmp(time1, time2) > 0;
+			case 'Same':
+				return _elm_lang$core$Native_Utils.eq(time1, time2);
+			case 'SameOrBefore':
+				return _elm_lang$core$Native_Utils.cmp(time1, time2) < 1;
+			default:
+				return _elm_lang$core$Native_Utils.cmp(time1, time2) > -1;
+		}
+	});
+var _rluiten$elm_date_extra$Date_Extra_Compare$SameOrBefore = {ctor: 'SameOrBefore'};
+var _rluiten$elm_date_extra$Date_Extra_Compare$SameOrAfter = {ctor: 'SameOrAfter'};
+var _rluiten$elm_date_extra$Date_Extra_Compare$Same = {ctor: 'Same'};
+var _rluiten$elm_date_extra$Date_Extra_Compare$Before = {ctor: 'Before'};
+var _rluiten$elm_date_extra$Date_Extra_Compare$After = {ctor: 'After'};
+var _rluiten$elm_date_extra$Date_Extra_Compare$BetweenOpen = {ctor: 'BetweenOpen'};
+var _rluiten$elm_date_extra$Date_Extra_Compare$BetweenOpenEnd = {ctor: 'BetweenOpenEnd'};
+var _rluiten$elm_date_extra$Date_Extra_Compare$BetweenOpenStart = {ctor: 'BetweenOpenStart'};
+var _rluiten$elm_date_extra$Date_Extra_Compare$Between = {ctor: 'Between'};
+var _rluiten$elm_date_extra$Date_Extra_Create$epochDate = _elm_lang$core$Date$fromTime(0);
+var _rluiten$elm_date_extra$Date_Extra_Create$epochTimezoneOffset = function () {
+	var inMinutes = (_elm_lang$core$Date$hour(_rluiten$elm_date_extra$Date_Extra_Create$epochDate) * 60) + _elm_lang$core$Date$minute(_rluiten$elm_date_extra$Date_Extra_Create$epochDate);
+	return _elm_lang$core$Native_Utils.eq(
+		_elm_lang$core$Date$year(_rluiten$elm_date_extra$Date_Extra_Create$epochDate),
+		1969) ? (0 - (inMinutes - (24 * 60))) : (0 - inMinutes);
+}();
+var _rluiten$elm_date_extra$Date_Extra_Create$getTimezoneOffset = _rluiten$elm_date_extra$Date_Extra_Internal$getTimezoneOffset;
+var _rluiten$elm_date_extra$Date_Extra_Create$adjustedTicksToDate = function (ticks) {
+	var date = A3(_rluiten$elm_date_extra$Date_Extra_Period$add, _rluiten$elm_date_extra$Date_Extra_Period$Millisecond, ticks + (_rluiten$elm_date_extra$Date_Extra_Create$epochTimezoneOffset * _rluiten$elm_date_extra$Date_Extra_Core$ticksAMinute), _rluiten$elm_date_extra$Date_Extra_Create$epochDate);
+	var dateOffset = _rluiten$elm_date_extra$Date_Extra_Create$getTimezoneOffset(date);
+	return _elm_lang$core$Native_Utils.eq(dateOffset, _rluiten$elm_date_extra$Date_Extra_Create$epochTimezoneOffset) ? date : A3(_rluiten$elm_date_extra$Date_Extra_Period$add, _rluiten$elm_date_extra$Date_Extra_Period$Minute, dateOffset - _rluiten$elm_date_extra$Date_Extra_Create$epochTimezoneOffset, date);
+};
+var _rluiten$elm_date_extra$Date_Extra_Create$dateFromFields = F7(
+	function (year, month, day, hour, minute, second, millisecond) {
+		return _rluiten$elm_date_extra$Date_Extra_Create$adjustedTicksToDate(
+			A7(_rluiten$elm_date_extra$Date_Extra_Internal$ticksFromFields, year, month, day, hour, minute, second, millisecond));
+	});
+var _rluiten$elm_date_extra$Date_Extra_Create$timeFromFields = A3(_rluiten$elm_date_extra$Date_Extra_Create$dateFromFields, 1970, _elm_lang$core$Date$Jan, 1);
+var _rluiten$elm_date_extra$Date_Extra_Duration$positiveDiffDays = F3(
+	function (date1, date2, multiplier) {
+		var date2DaysFromCivil = A3(
+			_rluiten$elm_date_extra$Date_Extra_Internal$daysFromCivil,
+			_elm_lang$core$Date$year(date2),
+			_rluiten$elm_date_extra$Date_Extra_Core$monthToInt(
+				_elm_lang$core$Date$month(date2)),
+			_elm_lang$core$Date$day(date2));
+		var date1DaysFromCivil = A3(
+			_rluiten$elm_date_extra$Date_Extra_Internal$daysFromCivil,
+			_elm_lang$core$Date$year(date1),
+			_rluiten$elm_date_extra$Date_Extra_Core$monthToInt(
+				_elm_lang$core$Date$month(date1)),
+			_elm_lang$core$Date$day(date1));
+		return (date1DaysFromCivil - date2DaysFromCivil) * multiplier;
+	});
+var _rluiten$elm_date_extra$Date_Extra_Duration$diffDays = F2(
+	function (date1, date2) {
+		return A3(_rluiten$elm_date_extra$Date_Extra_Compare$is, _rluiten$elm_date_extra$Date_Extra_Compare$After, date1, date2) ? A3(_rluiten$elm_date_extra$Date_Extra_Duration$positiveDiffDays, date1, date2, 1) : A3(_rluiten$elm_date_extra$Date_Extra_Duration$positiveDiffDays, date2, date1, -1);
+	});
+var _rluiten$elm_date_extra$Date_Extra_Duration$positiveDiff = F3(
+	function (date1, date2, multiplier) {
+		var accDiff = F4(
+			function (acc, v1, v2, maxV2) {
+				return (_elm_lang$core$Native_Utils.cmp(v1, v2) < 0) ? {ctor: '_Tuple2', _0: acc - 1, _1: (maxV2 + v1) - v2} : {ctor: '_Tuple2', _0: acc, _1: v1 - v2};
+			});
+		var msec2 = _elm_lang$core$Date$millisecond(date2);
+		var msec1 = _elm_lang$core$Date$millisecond(date1);
+		var second2 = _elm_lang$core$Date$second(date2);
+		var second1 = _elm_lang$core$Date$second(date1);
+		var minute2 = _elm_lang$core$Date$minute(date2);
+		var minute1 = _elm_lang$core$Date$minute(date1);
+		var hour2 = _elm_lang$core$Date$hour(date2);
+		var hour1 = _elm_lang$core$Date$hour(date1);
+		var day2 = _elm_lang$core$Date$day(date2);
+		var day1 = _elm_lang$core$Date$day(date1);
+		var month2Mon = _elm_lang$core$Date$month(date2);
+		var month2 = _rluiten$elm_date_extra$Date_Extra_Core$monthToInt(month2Mon);
+		var month1Mon = _elm_lang$core$Date$month(date1);
+		var month1 = _rluiten$elm_date_extra$Date_Extra_Core$monthToInt(month1Mon);
+		var year2 = _elm_lang$core$Date$year(date2);
+		var daysInDate2Month = A2(_rluiten$elm_date_extra$Date_Extra_Core$daysInMonth, year2, month2Mon);
+		var year1 = _elm_lang$core$Date$year(date1);
+		var _p0 = A4(accDiff, year1 - year2, month1, month2, 12);
+		var yearDiff = _p0._0;
+		var monthDiffA = _p0._1;
+		var _p1 = A4(accDiff, monthDiffA, day1, day2, daysInDate2Month);
+		var monthDiff = _p1._0;
+		var dayDiffA = _p1._1;
+		var _p2 = A4(accDiff, dayDiffA, hour1, hour2, 24);
+		var dayDiff = _p2._0;
+		var hourDiffA = _p2._1;
+		var _p3 = A4(accDiff, hourDiffA, minute1, minute2, 60);
+		var hourDiff = _p3._0;
+		var minuteDiffA = _p3._1;
+		var _p4 = A4(accDiff, minuteDiffA, second1, second2, 60);
+		var minuteDiff = _p4._0;
+		var secondDiffA = _p4._1;
+		var _p5 = A4(accDiff, secondDiffA, msec1, msec2, 1000);
+		var secondDiff = _p5._0;
+		var msecDiff = _p5._1;
+		return {year: yearDiff * multiplier, month: monthDiff * multiplier, day: dayDiff * multiplier, hour: hourDiff * multiplier, minute: minuteDiff * multiplier, second: secondDiff * multiplier, millisecond: msecDiff * multiplier};
+	});
+var _rluiten$elm_date_extra$Date_Extra_Duration$diff = F2(
+	function (date1, date2) {
+		return A3(_rluiten$elm_date_extra$Date_Extra_Compare$is, _rluiten$elm_date_extra$Date_Extra_Compare$After, date1, date2) ? A3(_rluiten$elm_date_extra$Date_Extra_Duration$positiveDiff, date1, date2, 1) : A3(_rluiten$elm_date_extra$Date_Extra_Duration$positiveDiff, date2, date1, -1);
+	});
+var _rluiten$elm_date_extra$Date_Extra_Duration$addMonth = F2(
+	function (monthCount, date) {
+		var day = _elm_lang$core$Date$day(date);
+		var monthInt = _rluiten$elm_date_extra$Date_Extra_Core$monthToInt(
+			_elm_lang$core$Date$month(date));
+		var newMonthInt = monthInt + monthCount;
+		var targetMonthInt = A2(_elm_lang$core$Basics_ops['%'], newMonthInt, 12);
+		var yearOffset = ((_elm_lang$core$Native_Utils.cmp(newMonthInt, 0) < 0) && (!_elm_lang$core$Native_Utils.eq(targetMonthInt, 0))) ? (((newMonthInt / 12) | 0) - 1) : ((newMonthInt / 12) | 0);
+		var year = _elm_lang$core$Date$year(date);
+		var inputCivil = A3(_rluiten$elm_date_extra$Date_Extra_Internal$daysFromCivil, year, monthInt, day);
+		var newYear = year + yearOffset;
+		var newDay = A2(
+			_elm_lang$core$Basics$min,
+			A2(
+				_rluiten$elm_date_extra$Date_Extra_Core$daysInMonth,
+				newYear,
+				_rluiten$elm_date_extra$Date_Extra_Core$intToMonth(newMonthInt)),
+			day);
+		var newCivil = A3(_rluiten$elm_date_extra$Date_Extra_Internal$daysFromCivil, newYear, targetMonthInt, newDay);
+		var daysDifferent = newCivil - inputCivil;
+		return A3(_rluiten$elm_date_extra$Date_Extra_Period$add, _rluiten$elm_date_extra$Date_Extra_Period$Day, daysDifferent, date);
+	});
+var _rluiten$elm_date_extra$Date_Extra_Duration$addYear = F2(
+	function (yearCount, date) {
+		return A2(_rluiten$elm_date_extra$Date_Extra_Duration$addMonth, 12 * yearCount, date);
+	});
+var _rluiten$elm_date_extra$Date_Extra_Duration$daylightOffsetCompensate = F2(
+	function (dateBefore, dateAfter) {
+		var offsetAfter = _rluiten$elm_date_extra$Date_Extra_Create$getTimezoneOffset(dateAfter);
+		var offsetBefore = _rluiten$elm_date_extra$Date_Extra_Create$getTimezoneOffset(dateBefore);
+		if (!_elm_lang$core$Native_Utils.eq(offsetBefore, offsetAfter)) {
+			var adjustedDate = A3(_rluiten$elm_date_extra$Date_Extra_Period$add, _rluiten$elm_date_extra$Date_Extra_Period$Millisecond, (offsetAfter - offsetBefore) * _rluiten$elm_date_extra$Date_Extra_Core$ticksAMinute, dateAfter);
+			var adjustedOffset = _rluiten$elm_date_extra$Date_Extra_Create$getTimezoneOffset(adjustedDate);
+			return (!_elm_lang$core$Native_Utils.eq(adjustedOffset, offsetAfter)) ? dateAfter : adjustedDate;
+		} else {
+			return dateAfter;
+		}
+	});
+var _rluiten$elm_date_extra$Date_Extra_Duration$requireDaylightCompensateInAdd = function (duration) {
+	var _p6 = duration;
+	switch (_p6.ctor) {
+		case 'Millisecond':
+			return false;
+		case 'Second':
+			return false;
+		case 'Minute':
+			return false;
+		case 'Hour':
+			return false;
+		case 'Day':
+			return true;
+		case 'Week':
+			return true;
+		case 'Month':
+			return true;
+		case 'Year':
+			return true;
+		default:
+			var _p7 = _p6._0;
+			return (!_elm_lang$core$Native_Utils.eq(_p7.day, 0)) || ((!_elm_lang$core$Native_Utils.eq(_p7.month, 0)) || (!_elm_lang$core$Native_Utils.eq(_p7.year, 0)));
+	}
+};
+var _rluiten$elm_date_extra$Date_Extra_Duration$zeroDelta = {year: 0, month: 0, day: 0, hour: 0, minute: 0, second: 0, millisecond: 0};
+var _rluiten$elm_date_extra$Date_Extra_Duration$DeltaRecord = F7(
+	function (a, b, c, d, e, f, g) {
+		return {year: a, month: b, day: c, hour: d, minute: e, second: f, millisecond: g};
+	});
+var _rluiten$elm_date_extra$Date_Extra_Duration$Delta = function (a) {
+	return {ctor: 'Delta', _0: a};
+};
+var _rluiten$elm_date_extra$Date_Extra_Duration$Year = {ctor: 'Year'};
+var _rluiten$elm_date_extra$Date_Extra_Duration$Month = {ctor: 'Month'};
+var _rluiten$elm_date_extra$Date_Extra_Duration$doAdd = F3(
+	function (duration, addend, date) {
+		var _p8 = duration;
+		switch (_p8.ctor) {
+			case 'Millisecond':
+				return A3(_rluiten$elm_date_extra$Date_Extra_Period$add, _rluiten$elm_date_extra$Date_Extra_Period$Millisecond, addend, date);
+			case 'Second':
+				return A3(_rluiten$elm_date_extra$Date_Extra_Period$add, _rluiten$elm_date_extra$Date_Extra_Period$Second, addend, date);
+			case 'Minute':
+				return A3(_rluiten$elm_date_extra$Date_Extra_Period$add, _rluiten$elm_date_extra$Date_Extra_Period$Minute, addend, date);
+			case 'Hour':
+				return A3(_rluiten$elm_date_extra$Date_Extra_Period$add, _rluiten$elm_date_extra$Date_Extra_Period$Hour, addend, date);
+			case 'Day':
+				return A3(_rluiten$elm_date_extra$Date_Extra_Period$add, _rluiten$elm_date_extra$Date_Extra_Period$Day, addend, date);
+			case 'Week':
+				return A3(_rluiten$elm_date_extra$Date_Extra_Period$add, _rluiten$elm_date_extra$Date_Extra_Period$Week, addend, date);
+			case 'Month':
+				return A2(_rluiten$elm_date_extra$Date_Extra_Duration$addMonth, addend, date);
+			case 'Year':
+				return A2(_rluiten$elm_date_extra$Date_Extra_Duration$addYear, addend, date);
+			default:
+				var _p9 = _p8._0;
+				return A3(
+					_rluiten$elm_date_extra$Date_Extra_Period$add,
+					_rluiten$elm_date_extra$Date_Extra_Period$Delta(
+						{week: 0, day: _p9.day, hour: _p9.hour, minute: _p9.minute, second: _p9.second, millisecond: _p9.millisecond}),
+					addend,
+					A3(
+						_rluiten$elm_date_extra$Date_Extra_Duration$doAdd,
+						_rluiten$elm_date_extra$Date_Extra_Duration$Month,
+						_p9.month,
+						A3(_rluiten$elm_date_extra$Date_Extra_Duration$doAdd, _rluiten$elm_date_extra$Date_Extra_Duration$Year, _p9.year, date)));
+		}
+	});
+var _rluiten$elm_date_extra$Date_Extra_Duration$add = F3(
+	function (duration, addend, date) {
+		var outputDate = A3(_rluiten$elm_date_extra$Date_Extra_Duration$doAdd, duration, addend, date);
+		return _rluiten$elm_date_extra$Date_Extra_Duration$requireDaylightCompensateInAdd(duration) ? A2(_rluiten$elm_date_extra$Date_Extra_Duration$daylightOffsetCompensate, date, outputDate) : outputDate;
+	});
+var _rluiten$elm_date_extra$Date_Extra_Duration$Week = {ctor: 'Week'};
+var _rluiten$elm_date_extra$Date_Extra_Duration$Day = {ctor: 'Day'};
+var _rluiten$elm_date_extra$Date_Extra_Duration$Hour = {ctor: 'Hour'};
+var _rluiten$elm_date_extra$Date_Extra_Duration$Minute = {ctor: 'Minute'};
+var _rluiten$elm_date_extra$Date_Extra_Duration$Second = {ctor: 'Second'};
+var _rluiten$elm_date_extra$Date_Extra_Duration$Millisecond = {ctor: 'Millisecond'};
+var _ksamborski$multiplicationtable$Main$viewLastStatus = function (m) {
+	return A2(
+		_rundis$elm_bootstrap$Bootstrap_Grid$row,
+		{
+			ctor: '::',
+			_0: _rundis$elm_bootstrap$Bootstrap_Grid_Row$centerXs,
+			_1: {ctor: '[]'}
+		},
+		function () {
+			var _p0 = m.currentMult;
+			if (_p0.ctor === 'Just') {
+				return {
+					ctor: '::',
+					_0: A2(
+						_rundis$elm_bootstrap$Bootstrap_Grid$col,
+						{
+							ctor: '::',
+							_0: _rundis$elm_bootstrap$Bootstrap_Grid_Col$attrs(
+								{
+									ctor: '::',
+									_0: _elm_lang$html$Html_Attributes$style(
+										{
+											ctor: '::',
+											_0: {ctor: '_Tuple2', _0: 'text-align', _1: 'center'},
+											_1: {ctor: '[]'}
+										}),
+									_1: {ctor: '[]'}
+								}),
+							_1: {ctor: '[]'}
+						},
+						{
+							ctor: '::',
+							_0: function () {
+								var _p1 = m.lastCorrect;
+								if (_p1.ctor === 'Just') {
+									if (_p1._0 === true) {
+										return _rundis$elm_bootstrap$Bootstrap_Alert$success(
+											{
+												ctor: '::',
+												_0: _elm_lang$html$Html$text('Dobrze!'),
+												_1: {ctor: '[]'}
+											});
+									} else {
+										return _rundis$elm_bootstrap$Bootstrap_Alert$danger(
+											{
+												ctor: '::',
+												_0: _elm_lang$html$Html$text('Źle!'),
+												_1: {ctor: '[]'}
+											});
+									}
+								} else {
+									return _elm_lang$html$Html$text('');
+								}
+							}(),
+							_1: {ctor: '[]'}
+						}),
+					_1: {ctor: '[]'}
+				};
+			} else {
+				return {ctor: '[]'};
+			}
+		}());
+};
 var _ksamborski$multiplicationtable$Main$viewTable = function (tbl) {
 	var center = _rundis$elm_bootstrap$Bootstrap_Table$cellAttr(
 		_elm_lang$html$Html_Attributes$style(
@@ -12661,7 +13101,7 @@ var _ksamborski$multiplicationtable$Main$viewTable = function (tbl) {
 				{
 					ctor: '::',
 					_0: A2(
-						_rundis$elm_bootstrap$Bootstrap_Table$td,
+						_rundis$elm_bootstrap$Bootstrap_Table$th,
 						{
 							ctor: '::',
 							_0: center,
@@ -12675,21 +13115,48 @@ var _ksamborski$multiplicationtable$Main$viewTable = function (tbl) {
 						}),
 					_1: A2(
 						_elm_lang$core$List$map,
-						function (_p0) {
-							var _p1 = _p0;
-							return A2(
-								_rundis$elm_bootstrap$Bootstrap_Table$td,
-								{
-									ctor: '::',
-									_0: center,
-									_1: {ctor: '[]'}
-								},
-								{
-									ctor: '::',
-									_0: _elm_lang$html$Html$text(
-										_p1._1 ? _elm_lang$core$Basics$toString((_p1._0 + 1) * x) : ''),
-									_1: {ctor: '[]'}
-								});
+						function (_p2) {
+							var _p3 = _p2;
+							var _p4 = _p3._1;
+							if (_p4.ctor === 'Just') {
+								if (_p4._0 === true) {
+									return A2(
+										_rundis$elm_bootstrap$Bootstrap_Table$td,
+										{
+											ctor: '::',
+											_0: center,
+											_1: {ctor: '[]'}
+										},
+										{
+											ctor: '::',
+											_0: _elm_lang$html$Html$text(
+												_elm_lang$core$Basics$toString((_p3._0 + 1) * x)),
+											_1: {ctor: '[]'}
+										});
+								} else {
+									return A2(
+										_rundis$elm_bootstrap$Bootstrap_Table$td,
+										{
+											ctor: '::',
+											_0: center,
+											_1: {
+												ctor: '::',
+												_0: _rundis$elm_bootstrap$Bootstrap_Table$cellDanger,
+												_1: {ctor: '[]'}
+											}
+										},
+										{ctor: '[]'});
+								}
+							} else {
+								return A2(
+									_rundis$elm_bootstrap$Bootstrap_Table$td,
+									{
+										ctor: '::',
+										_0: center,
+										_1: {ctor: '[]'}
+									},
+									{ctor: '[]'});
+							}
 						},
 						_elm_lang$core$Array$toIndexedList(a))
 				});
@@ -12747,12 +13214,42 @@ var _ksamborski$multiplicationtable$Main$viewTable = function (tbl) {
 				{ctor: '[]'},
 				A2(
 					_elm_lang$core$List$map,
-					function (_p2) {
-						var _p3 = _p2;
-						return A2(row, _p3._0 + 1, _p3._1);
+					function (_p5) {
+						var _p6 = _p5;
+						return A2(row, _p6._0 + 1, _p6._1);
 					},
 					_elm_lang$core$Array$toIndexedList(tbl)))
 		});
+};
+var _ksamborski$multiplicationtable$Main$wrongCount = function (a) {
+	return A3(
+		_elm_lang$core$Array$foldl,
+		F2(
+			function (a2, c) {
+				return c + _elm_lang$core$Array$length(
+					A2(
+						_elm_lang$core$Array$filter,
+						function (_p7) {
+							return !A2(_elm_lang$core$Maybe$withDefault, true, _p7);
+						},
+						a2));
+			}),
+		0,
+		a);
+};
+var _ksamborski$multiplicationtable$Main$doneCount = function (a) {
+	return A3(
+		_elm_lang$core$Array$foldl,
+		F2(
+			function (a2, c) {
+				return c + _elm_lang$core$Array$length(
+					A2(
+						_elm_lang$core$Array$filter,
+						_elm_lang$core$Maybe$withDefault(false),
+						a2));
+			}),
+		0,
+		a);
 };
 var _ksamborski$multiplicationtable$Main$availableMultCount = function (a) {
 	return A3(
@@ -12762,8 +13259,8 @@ var _ksamborski$multiplicationtable$Main$availableMultCount = function (a) {
 				return c + _elm_lang$core$Array$length(
 					A2(
 						_elm_lang$core$Array$filter,
-						function (_p4) {
-							return !_elm_lang$core$Basics$identity(_p4);
+						function (_p8) {
+							return !A2(_elm_lang$core$Maybe$withDefault, false, _p8);
 						},
 						a2));
 			}),
@@ -12775,23 +13272,23 @@ var _ksamborski$multiplicationtable$Main$availableMult = function (a) {
 		A3(
 			_elm_lang$core$List$foldl,
 			F2(
-				function (_p5, lst2) {
-					var _p6 = _p5;
+				function (_p9, lst2) {
+					var _p10 = _p9;
 					return A2(
 						_elm_lang$core$List$append,
 						A3(
 							_elm_lang$core$List$foldl,
 							F2(
-								function (_p7, lst) {
-									var _p8 = _p7;
-									return (!_p8._1) ? {
+								function (_p11, lst) {
+									var _p12 = _p11;
+									return (!A2(_elm_lang$core$Maybe$withDefault, false, _p12._1)) ? {
 										ctor: '::',
-										_0: {ctor: '_Tuple2', _0: _p6._0 + 1, _1: _p8._0 + 1},
+										_0: {ctor: '_Tuple2', _0: _p10._0 + 1, _1: _p12._0 + 1},
 										_1: lst
 									} : lst;
 								}),
 							{ctor: '[]'},
-							_elm_lang$core$Array$toIndexedList(_p6._1)),
+							_elm_lang$core$Array$toIndexedList(_p10._1)),
 						lst2);
 				}),
 			{ctor: '[]'},
@@ -12801,7 +13298,7 @@ var _ksamborski$multiplicationtable$Main$initTable = function (size) {
 	return A2(
 		_elm_lang$core$Array$repeat,
 		size,
-		A2(_elm_lang$core$Array$repeat, size, false));
+		A2(_elm_lang$core$Array$repeat, size, _elm_lang$core$Maybe$Nothing));
 };
 var _ksamborski$multiplicationtable$Main$initModel = function (size) {
 	return {
@@ -12849,8 +13346,8 @@ var _ksamborski$multiplicationtable$Main$update = F2(
 						_ksamborski$multiplicationtable$Main$availableMultCount(tbl) - 1,
 						0)));
 		};
-		var _p9 = act;
-		switch (_p9.ctor) {
+		var _p13 = act;
+		switch (_p13.ctor) {
 			case 'StartGame':
 				return {
 					ctor: '_Tuple2',
@@ -12870,13 +13367,13 @@ var _ksamborski$multiplicationtable$Main$update = F2(
 						m,
 						{
 							time: _elm_lang$core$Maybe$Just(
-								{ctor: '_Tuple2', _0: _p9._0, _1: _elm_lang$core$Maybe$Nothing})
+								{ctor: '_Tuple2', _0: _p13._0, _1: _elm_lang$core$Maybe$Nothing})
 						}),
 					_1: randomPick(m.table)
 				};
 			case 'GameEndDate':
-				var _p10 = m.time;
-				if (_p10.ctor === 'Just') {
+				var _p14 = m.time;
+				if (_p14.ctor === 'Just') {
 					return {
 						ctor: '_Tuple2',
 						_0: _elm_lang$core$Native_Utils.update(
@@ -12885,8 +13382,8 @@ var _ksamborski$multiplicationtable$Main$update = F2(
 								time: _elm_lang$core$Maybe$Just(
 									{
 										ctor: '_Tuple2',
-										_0: _p10._0._0,
-										_1: _elm_lang$core$Maybe$Just(_p9._0)
+										_0: _p14._0._0,
+										_1: _elm_lang$core$Maybe$Just(_p13._0)
 									}),
 								currentMult: _elm_lang$core$Maybe$Nothing
 							}),
@@ -12896,18 +13393,18 @@ var _ksamborski$multiplicationtable$Main$update = F2(
 					return {ctor: '_Tuple2', _0: m, _1: _elm_lang$core$Platform_Cmd$none};
 				}
 			case 'RandomPick':
-				var _p11 = A2(
+				var _p15 = A2(
 					_elm_lang$core$Array$get,
-					_p9._0,
+					_p13._0,
 					_ksamborski$multiplicationtable$Main$availableMult(m.table));
-				if (_p11.ctor === 'Just') {
+				if (_p15.ctor === 'Just') {
 					return {
 						ctor: '_Tuple2',
 						_0: _elm_lang$core$Native_Utils.update(
 							m,
 							{
 								currentMult: _elm_lang$core$Maybe$Just(
-									{x: _p11._0._0, y: _p11._0._1, input: ''})
+									{x: _p15._0._0, y: _p15._0._1, input: ''})
 							}),
 						_1: _elm_lang$core$Platform_Cmd$none
 					};
@@ -12919,8 +13416,8 @@ var _ksamborski$multiplicationtable$Main$update = F2(
 					};
 				}
 			case 'Input':
-				var _p12 = m.currentMult;
-				if (_p12.ctor === 'Just') {
+				var _p16 = m.currentMult;
+				if (_p16.ctor === 'Just') {
 					return {
 						ctor: '_Tuple2',
 						_0: _elm_lang$core$Native_Utils.update(
@@ -12928,8 +13425,8 @@ var _ksamborski$multiplicationtable$Main$update = F2(
 							{
 								currentMult: _elm_lang$core$Maybe$Just(
 									_elm_lang$core$Native_Utils.update(
-										_p12._0,
-										{input: _p9._0}))
+										_p16._0,
+										{input: _p13._0}))
 							}),
 						_1: _elm_lang$core$Platform_Cmd$none
 					};
@@ -12941,22 +13438,23 @@ var _ksamborski$multiplicationtable$Main$update = F2(
 					};
 				}
 			default:
-				var _p16 = _p9._0;
-				var _p13 = m.currentMult;
-				if (_p13.ctor === 'Just') {
-					var _p15 = _p13._0;
+				var _p20 = _p13._0;
+				var _p17 = m.currentMult;
+				if (_p17.ctor === 'Just') {
+					var _p19 = _p17._0;
 					var ntbl = function () {
-						if (_elm_lang$core$Native_Utils.eq(_p15.x * _p15.y, _p16)) {
-							var _p14 = A2(_elm_lang$core$Array$get, _p15.x - 1, m.table);
-							if (_p14.ctor === 'Just') {
-								return A3(
+						var _p18 = A2(_elm_lang$core$Array$get, _p19.x - 1, m.table);
+						if (_p18.ctor === 'Just') {
+							return A3(
+								_elm_lang$core$Array$set,
+								_p19.x - 1,
+								A3(
 									_elm_lang$core$Array$set,
-									_p15.x - 1,
-									A3(_elm_lang$core$Array$set, _p15.y - 1, true, _p14._0),
-									m.table);
-							} else {
-								return m.table;
-							}
+									_p19.y - 1,
+									_elm_lang$core$Maybe$Just(
+										_elm_lang$core$Native_Utils.eq(_p19.x * _p19.y, _p20)),
+									_p18._0),
+								m.table);
 						} else {
 							return m.table;
 						}
@@ -12967,8 +13465,8 @@ var _ksamborski$multiplicationtable$Main$update = F2(
 							m,
 							{
 								table: ntbl,
-								lastCorrect: _elm_lang$core$Native_Utils.eq(_p15.x * _p15.y, _p16) ? _elm_lang$core$Maybe$Just(true) : _elm_lang$core$Maybe$Just(false),
-								errorCount: _elm_lang$core$Native_Utils.eq(_p15.x * _p15.y, _p16) ? m.errorCount : (m.errorCount + 1)
+								lastCorrect: _elm_lang$core$Native_Utils.eq(_p19.x * _p19.y, _p20) ? _elm_lang$core$Maybe$Just(true) : _elm_lang$core$Maybe$Just(false),
+								errorCount: _elm_lang$core$Native_Utils.eq(_p19.x * _p19.y, _p20) ? m.errorCount : (m.errorCount + 1)
 							}),
 						_1: randomPick(ntbl)
 					};
@@ -12984,12 +13482,26 @@ var _ksamborski$multiplicationtable$Main$viewGame = function (m) {
 		{
 			ctor: '::',
 			_0: _rundis$elm_bootstrap$Bootstrap_Grid_Row$centerXs,
-			_1: {ctor: '[]'}
+			_1: {
+				ctor: '::',
+				_0: _rundis$elm_bootstrap$Bootstrap_Grid_Row$attrs(
+					{
+						ctor: '::',
+						_0: _elm_lang$html$Html_Attributes$style(
+							{
+								ctor: '::',
+								_0: {ctor: '_Tuple2', _0: 'padding', _1: '100px'},
+								_1: {ctor: '[]'}
+							}),
+						_1: {ctor: '[]'}
+					}),
+				_1: {ctor: '[]'}
+			}
 		},
 		function () {
-			var _p17 = m.currentMult;
-			if (_p17.ctor === 'Just') {
-				var _p20 = _p17._0;
+			var _p21 = m.currentMult;
+			if (_p21.ctor === 'Just') {
+				var _p23 = _p21._0;
 				return {
 					ctor: '::',
 					_0: A2(
@@ -13007,143 +13519,188 @@ var _ksamborski$multiplicationtable$Main$viewGame = function (m) {
 										}),
 									_1: {ctor: '[]'}
 								}),
-							_1: {ctor: '[]'}
+							_1: {
+								ctor: '::',
+								_0: _rundis$elm_bootstrap$Bootstrap_Grid_Col$xs8,
+								_1: {ctor: '[]'}
+							}
 						},
 						{
 							ctor: '::',
-							_0: function () {
-								var _p18 = m.lastCorrect;
-								if (_p18.ctor === 'Just') {
-									if (_p18._0 === true) {
-										return _rundis$elm_bootstrap$Bootstrap_Alert$success(
-											{
+							_0: A2(
+								_rundis$elm_bootstrap$Bootstrap_Form$formInline,
+								{
+									ctor: '::',
+									_0: _elm_lang$html$Html_Attributes$style(
+										{
+											ctor: '::',
+											_0: {ctor: '_Tuple2', _0: 'width', _1: 'fit-content'},
+											_1: {
 												ctor: '::',
-												_0: _elm_lang$html$Html$text('Dobrze!'),
+												_0: {ctor: '_Tuple2', _0: 'margin', _1: 'auto'},
 												_1: {ctor: '[]'}
-											});
-									} else {
-										return _rundis$elm_bootstrap$Bootstrap_Alert$danger(
-											{
-												ctor: '::',
-												_0: _elm_lang$html$Html$text('Źle!'),
-												_1: {ctor: '[]'}
-											});
+											}
+										}),
+									_1: {ctor: '[]'}
+								},
+								{
+									ctor: '::',
+									_0: A2(
+										_rundis$elm_bootstrap$Bootstrap_Form$label,
+										{
+											ctor: '::',
+											_0: _elm_lang$html$Html_Attributes$for('wynik'),
+											_1: {ctor: '[]'}
+										},
+										{
+											ctor: '::',
+											_0: _elm_lang$html$Html$text(
+												A2(
+													_elm_lang$core$Basics_ops['++'],
+													_elm_lang$core$Basics$toString(_p23.x),
+													A2(
+														_elm_lang$core$Basics_ops['++'],
+														' • ',
+														A2(
+															_elm_lang$core$Basics_ops['++'],
+															_elm_lang$core$Basics$toString(_p23.y),
+															' = ')))),
+											_1: {ctor: '[]'}
+										}),
+									_1: {
+										ctor: '::',
+										_0: _rundis$elm_bootstrap$Bootstrap_Form_InputGroup$view(
+											A2(
+												_rundis$elm_bootstrap$Bootstrap_Form_InputGroup$successors,
+												{
+													ctor: '::',
+													_0: A2(
+														_rundis$elm_bootstrap$Bootstrap_Form_InputGroup$button,
+														{
+															ctor: '::',
+															_0: _rundis$elm_bootstrap$Bootstrap_Button$success,
+															_1: function () {
+																var _p22 = _elm_lang$core$Result$toMaybe(
+																	_elm_lang$core$String$toInt(_p23.input));
+																if (_p22.ctor === 'Just') {
+																	return {
+																		ctor: '::',
+																		_0: _rundis$elm_bootstrap$Bootstrap_Button$onClick(
+																			_ksamborski$multiplicationtable$Main$CheckResult(_p22._0)),
+																		_1: {ctor: '[]'}
+																	};
+																} else {
+																	return {
+																		ctor: '::',
+																		_0: _rundis$elm_bootstrap$Bootstrap_Button$disabled(true),
+																		_1: {ctor: '[]'}
+																	};
+																}
+															}()
+														},
+														{
+															ctor: '::',
+															_0: _elm_lang$html$Html$text('Sprawdź'),
+															_1: {ctor: '[]'}
+														}),
+													_1: {ctor: '[]'}
+												},
+												_rundis$elm_bootstrap$Bootstrap_Form_InputGroup$config(
+													_rundis$elm_bootstrap$Bootstrap_Form_InputGroup$text(
+														{
+															ctor: '::',
+															_0: _rundis$elm_bootstrap$Bootstrap_Form_Input$id('wynik'),
+															_1: {
+																ctor: '::',
+																_0: _rundis$elm_bootstrap$Bootstrap_Form_Input$placeholder('Wpisz wynik'),
+																_1: {
+																	ctor: '::',
+																	_0: _rundis$elm_bootstrap$Bootstrap_Form_Input$onInput(_ksamborski$multiplicationtable$Main$Input),
+																	_1: {
+																		ctor: '::',
+																		_0: _rundis$elm_bootstrap$Bootstrap_Form_Input$value(_p23.input),
+																		_1: {ctor: '[]'}
+																	}
+																}
+															}
+														})))),
+										_1: {ctor: '[]'}
 									}
-								} else {
-									return _elm_lang$html$Html$text('');
-								}
-							}(),
-							_1: {
+								}),
+							_1: {ctor: '[]'}
+						}),
+					_1: {
+						ctor: '::',
+						_0: A2(
+							_rundis$elm_bootstrap$Bootstrap_Grid$col,
+							{
 								ctor: '::',
-								_0: A2(
-									_rundis$elm_bootstrap$Bootstrap_Form$formInline,
+								_0: _rundis$elm_bootstrap$Bootstrap_Grid_Col$attrs(
 									{
 										ctor: '::',
 										_0: _elm_lang$html$Html_Attributes$style(
 											{
 												ctor: '::',
-												_0: {ctor: '_Tuple2', _0: 'width', _1: 'fit-content'},
-												_1: {
-													ctor: '::',
-													_0: {ctor: '_Tuple2', _0: 'margin', _1: 'auto'},
-													_1: {ctor: '[]'}
-												}
+												_0: {ctor: '_Tuple2', _0: 'text-align', _1: 'center'},
+												_1: {ctor: '[]'}
 											}),
 										_1: {ctor: '[]'}
-									},
-									{
+									}),
+								_1: {
+									ctor: '::',
+									_0: _rundis$elm_bootstrap$Bootstrap_Grid_Col$xs4,
+									_1: {ctor: '[]'}
+								}
+							},
+							{
+								ctor: '::',
+								_0: _elm_lang$html$Html$text(
+									A2(
+										_elm_lang$core$Basics_ops['++'],
+										'Poprawnych odpowiedzi: ',
+										_elm_lang$core$Basics$toString(
+											_ksamborski$multiplicationtable$Main$doneCount(m.table)))),
+								_1: {
+									ctor: '::',
+									_0: A2(
+										_elm_lang$html$Html$br,
+										{ctor: '[]'},
+										{ctor: '[]'}),
+									_1: {
 										ctor: '::',
-										_0: A2(
-											_rundis$elm_bootstrap$Bootstrap_Form$label,
-											{
-												ctor: '::',
-												_0: _elm_lang$html$Html_Attributes$for('wynik'),
-												_1: {ctor: '[]'}
-											},
-											{
+										_0: _elm_lang$html$Html$text(
+											A2(
+												_elm_lang$core$Basics_ops['++'],
+												'Błędnych odpowiedzi: ',
+												_elm_lang$core$Basics$toString(
+													_ksamborski$multiplicationtable$Main$wrongCount(m.table)))),
+										_1: {
+											ctor: '::',
+											_0: A2(
+												_elm_lang$html$Html$br,
+												{ctor: '[]'},
+												{ctor: '[]'}),
+											_1: {
 												ctor: '::',
 												_0: _elm_lang$html$Html$text(
 													A2(
 														_elm_lang$core$Basics_ops['++'],
-														_elm_lang$core$Basics$toString(_p20.x),
-														A2(
-															_elm_lang$core$Basics_ops['++'],
-															' • ',
-															A2(
-																_elm_lang$core$Basics_ops['++'],
-																_elm_lang$core$Basics$toString(_p20.y),
-																' = ')))),
+														'Pozostało do zrobienia: ',
+														_elm_lang$core$Basics$toString(
+															_ksamborski$multiplicationtable$Main$availableMultCount(m.table)))),
 												_1: {ctor: '[]'}
-											}),
-										_1: {
-											ctor: '::',
-											_0: _rundis$elm_bootstrap$Bootstrap_Form_InputGroup$view(
-												A2(
-													_rundis$elm_bootstrap$Bootstrap_Form_InputGroup$successors,
-													{
-														ctor: '::',
-														_0: A2(
-															_rundis$elm_bootstrap$Bootstrap_Form_InputGroup$button,
-															{
-																ctor: '::',
-																_0: _rundis$elm_bootstrap$Bootstrap_Button$success,
-																_1: function () {
-																	var _p19 = _elm_lang$core$Result$toMaybe(
-																		_elm_lang$core$String$toInt(_p20.input));
-																	if (_p19.ctor === 'Just') {
-																		return {
-																			ctor: '::',
-																			_0: _rundis$elm_bootstrap$Bootstrap_Button$onClick(
-																				_ksamborski$multiplicationtable$Main$CheckResult(_p19._0)),
-																			_1: {ctor: '[]'}
-																		};
-																	} else {
-																		return {
-																			ctor: '::',
-																			_0: _rundis$elm_bootstrap$Bootstrap_Button$disabled(true),
-																			_1: {ctor: '[]'}
-																		};
-																	}
-																}()
-															},
-															{
-																ctor: '::',
-																_0: _elm_lang$html$Html$text('Sprawdź'),
-																_1: {ctor: '[]'}
-															}),
-														_1: {ctor: '[]'}
-													},
-													_rundis$elm_bootstrap$Bootstrap_Form_InputGroup$config(
-														_rundis$elm_bootstrap$Bootstrap_Form_InputGroup$text(
-															{
-																ctor: '::',
-																_0: _rundis$elm_bootstrap$Bootstrap_Form_Input$id('wynik'),
-																_1: {
-																	ctor: '::',
-																	_0: _rundis$elm_bootstrap$Bootstrap_Form_Input$placeholder('Wpisz wynik'),
-																	_1: {
-																		ctor: '::',
-																		_0: _rundis$elm_bootstrap$Bootstrap_Form_Input$onInput(_ksamborski$multiplicationtable$Main$Input),
-																		_1: {
-																			ctor: '::',
-																			_0: _rundis$elm_bootstrap$Bootstrap_Form_Input$value(_p20.input),
-																			_1: {ctor: '[]'}
-																		}
-																	}
-																}
-															})))),
-											_1: {ctor: '[]'}
+											}
 										}
-									}),
-								_1: {ctor: '[]'}
-							}
-						}),
-					_1: {ctor: '[]'}
+									}
+								}
+							}),
+						_1: {ctor: '[]'}
+					}
 				};
 			} else {
-				var _p21 = m.time;
-				if (((_p21.ctor === 'Just') && (_p21._0.ctor === '_Tuple2')) && (_p21._0._1.ctor === 'Just')) {
-					var ddiff = A2(_rluiten$elm_date_extra$Date_Extra_Period$diff, _p21._0._1._0, _p21._0._0);
+				var _p24 = m.time;
+				if (((_p24.ctor === 'Just') && (_p24._0.ctor === '_Tuple2')) && (_p24._0._1.ctor === 'Just')) {
+					var ddiff = A2(_rluiten$elm_date_extra$Date_Extra_Duration$diff, _p24._0._1._0, _p24._0._0);
 					return {
 						ctor: '::',
 						_0: A2(
@@ -13211,18 +13768,32 @@ var _ksamborski$multiplicationtable$Main$viewGame = function (m) {
 														_elm_lang$core$Basics_ops['++'],
 														_elm_lang$core$Basics$toString(m.errorCount),
 														function () {
-															var _p22 = m.errorCount;
-															switch (_p22) {
-																case 1:
-																	return ' błąd';
-																case 2:
-																	return ' błędy';
-																case 3:
-																	return ' błędy';
-																case 4:
-																	return ' błędy';
-																default:
-																	return ' błędów';
+															if (_elm_lang$core$Native_Utils.cmp(m.errorCount, 20) < 1) {
+																var _p25 = m.errorCount;
+																switch (_p25) {
+																	case 1:
+																		return ' błąd';
+																	case 2:
+																		return ' błędy';
+																	case 3:
+																		return ' błędy';
+																	case 4:
+																		return ' błędy';
+																	default:
+																		return ' błędów';
+																}
+															} else {
+																var _p26 = A2(_elm_lang$core$Basics_ops['%'], m.errorCount, 10);
+																switch (_p26) {
+																	case 2:
+																		return ' błędy';
+																	case 3:
+																		return ' błędy';
+																	case 4:
+																		return ' błędy';
+																	default:
+																		return ' błędów';
+																}
 															}
 														}()))),
 											_1: {
@@ -13320,11 +13891,15 @@ var _ksamborski$multiplicationtable$Main$view = function (m) {
 			_0: _rundis$elm_bootstrap$Bootstrap_CDN$stylesheet,
 			_1: {
 				ctor: '::',
-				_0: _ksamborski$multiplicationtable$Main$viewTable(m.table),
+				_0: _ksamborski$multiplicationtable$Main$viewGame(m),
 				_1: {
 					ctor: '::',
-					_0: _ksamborski$multiplicationtable$Main$viewGame(m),
-					_1: {ctor: '[]'}
+					_0: _ksamborski$multiplicationtable$Main$viewLastStatus(m),
+					_1: {
+						ctor: '::',
+						_0: _ksamborski$multiplicationtable$Main$viewTable(m.table),
+						_1: {ctor: '[]'}
+					}
 				}
 			}
 		});
@@ -13337,7 +13912,7 @@ var _ksamborski$multiplicationtable$Main$main = _elm_lang$html$Html$program(
 			_1: _elm_lang$core$Platform_Cmd$none
 		},
 		update: _ksamborski$multiplicationtable$Main$update,
-		subscriptions: function (_p23) {
+		subscriptions: function (_p27) {
 			return _elm_lang$core$Platform_Sub$none;
 		},
 		view: _ksamborski$multiplicationtable$Main$view

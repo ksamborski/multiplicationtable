@@ -12,15 +12,16 @@ import Bootstrap.Grid.Col as Col
 import Bootstrap.Grid.Row as Grid
 import Bootstrap.Table as Table
 import Date exposing (Date)
-import Date.Extra.Period as Date
+import Date.Extra.Duration as Date
 import Html exposing (Html)
 import Html.Attributes as Html
+import Maybe
 import Random
 import Task
 
 
 type alias Model =
-    { table : Array (Array Bool)
+    { table : Array (Array (Maybe Bool))
     , currentMult : Maybe CurrentMult
     , time : Maybe ( Date, Maybe Date )
     , errorCount : Int
@@ -44,9 +45,9 @@ type Action
     | CheckResult Int
 
 
-initTable : Int -> Array (Array Bool)
+initTable : Int -> Array (Array (Maybe Bool))
 initTable size =
-    Array.repeat size (Array.repeat size False)
+    Array.repeat size (Array.repeat size Nothing)
 
 
 initModel : Int -> Model
@@ -69,7 +70,7 @@ main =
         }
 
 
-availableMult : Array (Array Bool) -> Array ( Int, Int )
+availableMult : Array (Array (Maybe Bool)) -> Array ( Int, Int )
 availableMult a =
     Array.fromList <|
         List.foldl
@@ -77,7 +78,7 @@ availableMult a =
                 List.append
                     (List.foldl
                         (\( y, v ) lst ->
-                            if not v then
+                            if not <| Maybe.withDefault False v then
                                 ( idx + 1, y + 1 ) :: lst
                             else
                                 lst
@@ -93,9 +94,19 @@ availableMult a =
             Array.toIndexedList a
 
 
-availableMultCount : Array (Array Bool) -> Int
+availableMultCount : Array (Array (Maybe Bool)) -> Int
 availableMultCount a =
-    Array.foldl (\a2 c -> c + (Array.length <| Array.filter (not << identity) a2)) 0 a
+    Array.foldl (\a2 c -> c + (Array.length <| Array.filter (not << Maybe.withDefault False) a2)) 0 a
+
+
+doneCount : Array (Array (Maybe Bool)) -> Int
+doneCount a =
+    Array.foldl (\a2 c -> c + (Array.length <| Array.filter (Maybe.withDefault False) a2)) 0 a
+
+
+wrongCount : Array (Array (Maybe Bool)) -> Int
+wrongCount a =
+    Array.foldl (\a2 c -> c + (Array.length <| Array.filter (not << Maybe.withDefault True) a2)) 0 a
 
 
 update : Action -> Model -> ( Model, Cmd Action )
@@ -148,18 +159,15 @@ update act m =
                 Just cm ->
                     let
                         ntbl =
-                            if cm.x * cm.y == i then
-                                case Array.get (cm.x - 1) m.table of
-                                    Just a ->
-                                        Array.set
-                                            (cm.x - 1)
-                                            (Array.set (cm.y - 1) True a)
-                                            m.table
-
-                                    Nothing ->
+                            case Array.get (cm.x - 1) m.table of
+                                Just a ->
+                                    Array.set
+                                        (cm.x - 1)
+                                        (Array.set (cm.y - 1) (Just (cm.x * cm.y == i)) a)
                                         m.table
-                            else
-                                m.table
+
+                                Nothing ->
+                                    m.table
                     in
                     ( { m
                         | table = ntbl
@@ -185,12 +193,13 @@ view : Model -> Html Action
 view m =
     Grid.containerFluid []
         [ CDN.stylesheet
-        , viewTable m.table
         , viewGame m
+        , viewLastStatus m
+        , viewTable m.table
         ]
 
 
-viewTable : Array (Array Bool) -> Html Action
+viewTable : Array (Array (Maybe Bool)) -> Html Action
 viewTable tbl =
     let
         center =
@@ -198,16 +207,18 @@ viewTable tbl =
 
         row x a =
             Table.tr [] <|
-                Table.td [ center ] [ Html.text <| toString x ]
+                Table.th [ center ] [ Html.text <| toString x ]
                     :: (List.map
                             (\( y, v ) ->
-                                Table.td [ center ]
-                                    [ Html.text <|
-                                        if v then
-                                            toString <| (y + 1) * x
-                                        else
-                                            ""
-                                    ]
+                                case v of
+                                    Just True ->
+                                        Table.td [ center ] [ Html.text <| toString <| (y + 1) * x ]
+
+                                    Just False ->
+                                        Table.td [ center, Table.cellDanger ] []
+
+                                    _ ->
+                                        Table.td [ center ] []
                             )
                         <|
                             Array.toIndexedList a
@@ -233,20 +244,11 @@ viewTable tbl =
 
 viewGame : Model -> Html Action
 viewGame m =
-    Grid.row [ Grid.centerXs ] <|
+    Grid.row [ Grid.centerXs, Grid.attrs [ Html.style [ ( "padding", "100px" ) ] ] ] <|
         case m.currentMult of
             Just cm ->
-                [ Grid.col [ Col.attrs [ Html.style [ ( "text-align", "center" ) ] ] ]
-                    [ case m.lastCorrect of
-                        Just True ->
-                            Alert.success [ Html.text "Dobrze!" ]
-
-                        Just False ->
-                            Alert.danger [ Html.text "Źle!" ]
-
-                        _ ->
-                            Html.text ""
-                    , Form.formInline
+                [ Grid.col [ Col.attrs [ Html.style [ ( "text-align", "center" ) ] ], Col.xs8 ]
+                    [ Form.formInline
                         [ Html.style [ ( "width", "fit-content" ), ( "margin", "auto" ) ] ]
                         [ Form.label
                             [ Html.for "wynik" ]
@@ -280,6 +282,13 @@ viewGame m =
                             |> InputGroup.view
                         ]
                     ]
+                , Grid.col [ Col.attrs [ Html.style [ ( "text-align", "center" ) ] ], Col.xs4 ]
+                    [ Html.text <| "Poprawnych odpowiedzi: " ++ toString (doneCount m.table)
+                    , Html.br [] []
+                    , Html.text <| "Błędnych odpowiedzi: " ++ toString (wrongCount m.table)
+                    , Html.br [] []
+                    , Html.text <| "Pozostało do zrobienia: " ++ toString (availableMultCount m.table)
+                    ]
                 ]
 
             Nothing ->
@@ -303,21 +312,35 @@ viewGame m =
                             , Html.text <|
                                 "Popełniłeś "
                                     ++ toString m.errorCount
-                                    ++ (case m.errorCount of
-                                            1 ->
-                                                " błąd"
+                                    ++ (if m.errorCount <= 20 then
+                                            case m.errorCount of
+                                                1 ->
+                                                    " błąd"
 
-                                            2 ->
-                                                " błędy"
+                                                2 ->
+                                                    " błędy"
 
-                                            3 ->
-                                                " błędy"
+                                                3 ->
+                                                    " błędy"
 
-                                            4 ->
-                                                " błędy"
+                                                4 ->
+                                                    " błędy"
 
-                                            _ ->
-                                                " błędów"
+                                                _ ->
+                                                    " błędów"
+                                        else
+                                            case m.errorCount % 10 of
+                                                2 ->
+                                                    " błędy"
+
+                                                3 ->
+                                                    " błędy"
+
+                                                4 ->
+                                                    " błędy"
+
+                                                _ ->
+                                                    " błędów"
                                        )
                             , Html.br [] []
                             , Html.br [] []
@@ -334,3 +357,25 @@ viewGame m =
                                 [ Html.text "Zacznij grę" ]
                             ]
                         ]
+
+
+viewLastStatus : Model -> Html Action
+viewLastStatus m =
+    Grid.row [ Grid.centerXs ] <|
+        case m.currentMult of
+            Just _ ->
+                [ Grid.col [ Col.attrs [ Html.style [ ( "text-align", "center" ) ] ] ]
+                    [ case m.lastCorrect of
+                        Just True ->
+                            Alert.success [ Html.text "Dobrze!" ]
+
+                        Just False ->
+                            Alert.danger [ Html.text "Źle!" ]
+
+                        _ ->
+                            Html.text ""
+                    ]
+                ]
+
+            Nothing ->
+                []
